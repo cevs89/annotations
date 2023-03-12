@@ -120,3 +120,74 @@ ALTER USER postgres PASSWORD 'postgres';
 psql
 
 createdb name_db
+
+______
+
+
+
+Configurar flower.
+
+Referencia de la configuración en Saturno, se debe cambiar los datos de configuración para cada server que se necesite.
+
+La URL se solicita a Nelson y se indica que se apunte al balanceador de carga de las instancias requeridas ya que la IP de los balanceadores no cambia y lo que se hace en el nginx es un proxy al puerto donde correo flower.
+
+
+Supervisor:
+
+Raíz: /etc/supervisor/conf.d/flower.conf
+
+habilite el puerto: 9165 para flower.
+
+[program:flower-celery-saturno]
+command=/home/jenkins_reco_ab/workspace/myenv/bin/flower -A ebisuu.celery -l info --port=9165 --basic_auth=aituring2021:AB2021$$
+directory=/home/jenkins_reco_ab/workspace/ebisuu3/ebisuu3
+user=root
+numprocs=1
+stdout_logfile=/home/ubuntu/logs/flower_celery.log
+stderr_logfile=/home/ubuntu/logs/flower_celery_err.log
+autostart=true
+autorestart=true
+startsecs=10
+
+; Need to wait for currently executing tasks to finish at shutdown.
+; Increase this if you have very long running tasks.
+stopwaitsecs = 600
+
+stopasgroup=true
+
+; Set Celery priority higher than default (999)
+; so, if rabbitmq is supervised, it will start first.
+priority=1000
+
+Supervisor tome los cambios:
+
+supervisorctl reread
+supervisorctl update
+
+
+
+
+
+Nginx.
+
+/etc/nginx/sites-available/flower
+server {
+	listen 80;
+	server_name flower.aituring.co;
+	charset utf-8;
+
+	location / {
+    	proxy_pass http://localhost:9165;
+    	proxy_set_header Host $host;
+    	proxy_redirect off;
+    	proxy_http_version 1.1;
+    	proxy_set_header Upgrade $http_upgrade;
+    	proxy_set_header Connection "upgrade";
+	}
+}
+
+Adicionales Importantes:
+
+sudo ln -s /etc/nginx/sites-available/flower /etc/nginx/sites-enabled/flower
+
+sudo service nginx restart
